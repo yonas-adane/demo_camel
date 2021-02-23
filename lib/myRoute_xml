@@ -1,0 +1,7 @@
+<routes xmlns="http://camel.apache.org/schema/spring">
+    <route id="myMercuryRoute">
+        <from uri="timer:foo"/>
+        <bean beanType="com.library.external.MyBean" method="hello('Mercury')"/>
+        <log message="Called hello(Mercury)"/>
+    </route>
+</routes>
