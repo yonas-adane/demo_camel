@@ -7,6 +7,7 @@ import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.model.RoutesDefinition;
 import org.apache.camel.spi.XMLRoutesDefinitionLoader;
 import org.apache.camel.spring.SpringCamelContext;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
 import org.springframework.beans.factory.support.BeanDefinitionBuilder;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
@@ -33,8 +34,9 @@ public class DemoApplication{
 	public static void main(String[] args) {
 		ApplicationContext applicationContext = SpringApplication.run(DemoApplication.class, args);
 
-		SpringCamelContext springCamelContext = new SpringCamelContext(applicationContext);
+		SpringCamelContext springCamelContext = applicationContext.getBean(SpringCamelContext.class);
 
+		CamelContext camelContext = applicationContext.getBean(CamelContext.class);
 
 		try {
 
@@ -44,17 +46,13 @@ public class DemoApplication{
 			//add route using java dsl - this works fine.
 			addRouteJavaDsl(springCamelContext, clazz);
 
-			//register bean - added this to see if it helps resolve the
-			// java.lang.ClassNotFoundException error when using xml dsl.
+			//register bean - added this to get the same result in the java dsl route below (line #75).
 			registerBean(clazz, externalBeanName, applicationContext);
 
 			//bean is registered
-			//add route using xml dsl - this part fails with the error message below
-			/// Failed to create route myMercuryRoute at: >>>
-			/// Bean[com.library.external.MyBean] <<<
-			/// in route: Route(myMercuryRoute)[From[timer:foo] -> [Bean[com.library.e...
-			/// because of java.lang.ClassNotFoundException: com.library.external.MyBean
-			addRouteXMLDsl(applicationContext, springCamelContext);
+			//add route using xml dsl - i no longer get the java.lang.ClassNotFoundException
+			//but camel is not adding the route defined by the xml dsl
+			addRouteXMLDsl(springCamelContext, camelContext);
 
 		} catch (Exception ex) {
 			ex.printStackTrace();
@@ -88,7 +86,7 @@ public class DemoApplication{
 		}
 	}
 
-	private static void addRouteXMLDsl(ApplicationContext applicationContext, SpringCamelContext springCamelContext) throws Exception{
+	private static void addRouteXMLDsl(SpringCamelContext springCamelContext, CamelContext camelContext) throws Exception{
 
 		String routeXMLString = "<routes xmlns=\"http://camel.apache.org/schema/spring\">\n" +
 				"    <route id=\"myMercuryRoute\">\n" +
@@ -100,7 +98,7 @@ public class DemoApplication{
 
 		InputStream inputStream = new ByteArrayInputStream(routeXMLString.getBytes());
 
-		CamelContext camelContext = new SpringCamelContext(applicationContext) ;
+		//CamelContext camelContext = new SpringCamelContext(applicationContext) ;
 
 		ExtendedCamelContext extendedCamelContext = camelContext.adapt(ExtendedCamelContext.class);
 		XMLRoutesDefinitionLoader xmlRoutesDefinitionLoader = extendedCamelContext.getXMLRoutesDefinitionLoader();
@@ -115,15 +113,20 @@ public class DemoApplication{
 
 		try {
 
+			//after adding routes, springCamelContext still shows 0 routes
 			springCamelContext.addRouteDefinitions(routesDefinition.getRoutes());
 
 			List<Route> loadedRoutes = springCamelContext.getRoutes();
 
-			for(Route route : loadedRoutes){
+			for (Route route : loadedRoutes) {
 				System.out.printf(route.getId());
 			}
 
+			//0 routes found?
+			System.out.printf(loadedRoutes.size() + " routes found");
+
 		}
+
 		catch(Exception ex){
 			//Failed to create route myMercuryRoute at: >>>
 			// Bean[com.library.external.MyBean] <<<
@@ -175,6 +178,7 @@ public class DemoApplication{
 	private static void registerBean(Class<?> clazz, String beanName, ApplicationContext applicationContext) {
 
 		AutowireCapableBeanFactory factory = applicationContext.getAutowireCapableBeanFactory();
+
 
 		BeanDefinitionRegistry registry = (BeanDefinitionRegistry) factory;
 
